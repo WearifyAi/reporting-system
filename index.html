@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Pregomesh</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            color: #fff;
+        }
+
+        /* Flex container: left sidebar + main chart area */
+        #container {
+            display: flex;
+            min-height: 100vh;
+            background-color: #371f77;
+        }
+
+        /* Sidebar styling */
+        #sidebar {
+            width: 250px;
+            background-color: #0c0d34;
+            border-right: 1px solid #ccc;
+            padding: 1rem;
+        }
+
+        #sidebar h2 {
+            margin-top: 0;
+        }
+
+        label {
+            display: inline-block;
+            margin-top: 1rem;
+            margin-bottom: 0.3rem;
+            font-weight: bold;
+        }
+
+        .grouping-buttons button {
+            display: block;
+            width: 100%;
+            margin: 0.3rem 0;
+            background-color: #b194fe;
+
+        }
+
+        /* Main area for the chart */
+        #mainContent {
+            flex: 1;
+            padding: 1rem;
+        }
+
+        #chartContainer {
+            margin-top: 1rem;
+            max-width: 100%;
+        }
+
+        /* Date Filter spacing */
+        .date-filter-group {
+            margin-bottom: 1rem;
+        }
+
+        .date-filter-group input {
+            width: 100%;
+            background-color: #b194fe;
+        }
+
+        .date-filter-group button {
+            background-color: #b194fe;
+            width: 48%;
+        }
+
+        #productSelect {
+            background-color: #b194fe;
+            width: 48%;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <!-- SIDEBAR -->
+        <aside id="sidebar">
+            <h3>Filters</h3>
+
+            <!-- Grouping Buttons -->
+            <div class="grouping-buttons">
+                <button id="btnDay">Day</button>
+                <button id="btnWeek">Week</button>
+                <button id="btnMonth">Month</button>
+            </div>
+
+            <!-- Product Multi-Select -->
+            <div class="product-filter">
+                <label for="productSelect">Products:</label>
+                <!-- 'multiple' allows picking multiple items. 'size' controls visible rows. -->
+                <select id="productSelect" multiple size="6" style="width: 100%;">
+                    <!-- We'll programmatically fill in options, including "All" -->
+                </select>
+            </div>
+
+            <!-- Date Range Filter -->
+            <div class="date-filter-group">
+                <label for="startDate">Start Date:</label>
+                <input type="date" id="startDate" />
+
+                <label for="endDate">End Date:</label>
+                <input type="date" id="endDate" />
+
+                <div style="margin-top: 0.5rem;">
+                    <button id="btnApplyFilter">Apply</button>
+                    <button id="btnClearFilter">Clear</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT (CHART) -->
+        <div id="mainContent">
+            <h1>Pregomesh</h1>
+            <div id="chartContainer">
+                <canvas id="myChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+
+        const displayNames = {
+            NNarev: "Arev",
+            NNbow: "Bow",
+            NNlialusin: "Lialusin",
+            NNsaturday: "Saturday",
+            NNwednesday: "Wednesday",
+            kateel1: "Kateel"
+        }
+
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCCnNKsa48fEZzg5E2W9A6dAKt_aTnBBfE",
+            authDomain: "w2wprod-f2fd0.firebaseapp.com",
+            databaseURL: "https://w2wprod-f2fd0-default-rtdb.firebaseio.com",
+            projectId: "w2wprod-f2fd0",
+            storageBucket: "w2wprod-f2fd0.appspot.com",
+            messagingSenderId: "541303304478",
+            appId: "1:541303304478:web:90e81c2e23b394bbdf590f",
+            measurementId: "G-CBNF7CR94E"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        let pregomeshData = {};
+
+        let currentGrouping = 'day';  // day / week / month
+
+        let customStart = null;
+        let customEnd = null;
+
+        const colorPalette = [
+            'rgba(240, 98, 146, 0.6)',   // Pink (#F06292)
+            'rgba(255, 167, 38, 0.6)',   // Orange (#FFA726)
+            'rgba(255, 238, 88, 0.6)',   // Yellow (#FFEE58)
+            'rgba(102, 187, 106, 0.6)',  // Green (#66BB6A)
+            'rgba(38, 198, 218, 0.6)',   // Cyan (#26C6DA)
+            'rgba(66, 165, 245, 0.6)',   // Blue (#42A5F5)
+            'rgba(171, 71, 188, 0.6)',   // Purple (#AB47BC)
+            'rgba(236, 64, 122, 0.6)',   // Rose (#EC407A)
+        ];
+
+        const pregomeshRef = ref(database, 'pregomesh');
+        onValue(pregomeshRef, (snapshot) => {
+            const data = snapshot.val() || {};
+            pregomeshData = data;
+
+            populateProductSelect(Object.keys(pregomeshData));
+            updateChart();
+        });
+
+        function populateProductSelect(keys) {
+            const select = document.getElementById('productSelect');
+
+            // Clear any existing options
+            while (select.firstChild) {
+                select.removeChild(select.firstChild);
+            }
+            // Add "All" option
+            const allOption = document.createElement('option');
+            allOption.value = 'All';
+            allOption.text = 'All Products';
+            allOption.selected = true;
+            select.appendChild(allOption);
+
+            // Add each product key
+            for (let k of keys) {
+                const option = document.createElement('option');
+                option.value = k;
+                option.text = displayNames[k];
+                select.appendChild(option);
+            }
+
+            // Only attach the single-click event once
+            if (!select.dataset.singleClickEventAdded) {
+                select.addEventListener('mousedown', (e) => {
+                    // Prevent default so the browser doesn't clear other selections
+                    e.preventDefault();
+
+                    // If the user clicked on an <option>, toggle its selection
+                    if (e.target && e.target.tagName === 'OPTION') {
+                        e.target.selected = !e.target.selected;
+                    }
+                    updateChart();
+                    return false; // Prevents any further default handling
+                });
+
+                // Mark that we have attached this event
+                select.dataset.singleClickEventAdded = 'true';
+            }
+        }
+
+        function groupByDay(timestamps) {
+            // returns { [dayKey]: { count, start, end } }
+            const dayMap = {};
+            timestamps.forEach(ts => {
+                const date = new Date(ts);
+                const dayKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+                if (!dayMap[dayKey]) {
+                    dayMap[dayKey] = { count: 0, start: dayKey, end: dayKey };
+                }
+                dayMap[dayKey].count++;
+            });
+            return dayMap;
+        }
+
+        function groupByWeek(timestamps) {
+            // returns { "2025-W03": { count, start, end }, ... }
+            const weekMap = {};
+            timestamps.forEach(ts => {
+                const d = new Date(ts);
+                const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+
+                const dayNum = date.getUTCDay() || 7;
+                date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+                const year = date.getUTCFullYear();
+                const yearStart = new Date(Date.UTC(year, 0, 1));
+                const weekNo = Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+                const weekStr = String(weekNo).padStart(2, '0');
+                const weekKey = `${year}-W${weekStr}`;
+
+                if (!weekMap[weekKey]) {
+                    const thursday = new Date(date);
+                    const monday = new Date(thursday);
+                    monday.setUTCDate(thursday.getUTCDate() - 3);
+                    const sunday = new Date(monday);
+                    sunday.setUTCDate(monday.getUTCDate() + 6);
+
+                    weekMap[weekKey] = {
+                        count: 0,
+                        start: monday.toISOString().split('T')[0],
+                        end: sunday.toISOString().split('T')[0]
+                    };
+                }
+                weekMap[weekKey].count++;
+            });
+            return weekMap;
+        }
+
+        function groupByMonth(timestamps) {
+            // returns { "2025-01": { count, start, end }, ... }
+            const monthMap = {};
+            timestamps.forEach(ts => {
+                const d = new Date(ts);
+                const y = d.getUTCFullYear();
+                const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+                const monthKey = `${y}-${m}`;
+
+                if (!monthMap[monthKey]) {
+                    const startStr = `${y}-${m}-01`;
+                    // end => last day of month
+                    const nextMonth = new Date(Date.UTC(y, d.getUTCMonth() + 1, 1));
+                    nextMonth.setUTCDate(0);
+                    const lastDay = nextMonth.getUTCDate();
+                    const endStr = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+                    monthMap[monthKey] = { count: 0, start: startStr, end: endStr };
+                }
+                monthMap[monthKey].count++;
+            });
+            return monthMap;
+        }
+
+        function getGroupedDataForProduct(product, grouping) {
+            let timestamps = [];
+
+            if (product === 'All') {
+                // Summation of ALL timestamps from all keys
+                const allKeys = Object.keys(pregomeshData);
+                allKeys.forEach(key => {
+                    timestamps = timestamps.concat(pregomeshData[key] || []);
+                });
+            } else {
+                // Just this product's timestamps
+                timestamps = pregomeshData[product] || [];
+            }
+
+            // 1) Filter by custom date range
+            let filtered = timestamps;
+            if (customStart && customEnd) {
+                filtered = timestamps.filter(ts => {
+                    const dt = new Date(ts);
+                    return dt >= customStart && dt <= customEnd;
+                });
+            }
+
+            // 2) Group by day/week/month
+            switch (grouping) {
+                case 'day':
+                    return groupByDay(filtered);
+                case 'week':
+                    return groupByWeek(filtered);
+                case 'month':
+                    return groupByMonth(filtered);
+                default:
+                    return {};
+            }
+        }
+
+        function getChartData() {
+            const selected = getSelectedProducts(); // array of product names
+            if (selected.length === 0) {
+                return { labels: [], datasets: [] };
+            }
+
+            const productMaps = {}; // { [productName]: groupedMap }
+            selected.forEach(prod => {
+                productMaps[prod] = getGroupedDataForProduct(prod, currentGrouping);
+            });
+
+            const labelSet = new Set();
+            for (let prod of selected) {
+                for (let lbl of Object.keys(productMaps[prod])) {
+                    labelSet.add(lbl);
+                }
+            }
+
+            const labelWithDates = [];
+            labelSet.forEach(lbl => {
+                let foundStart = null;
+                for (let prod of selected) {
+                    if (productMaps[prod][lbl]) {
+                        foundStart = productMaps[prod][lbl].start;
+                        break;
+                    }
+                }
+                labelWithDates.push([lbl, foundStart]);
+            });
+            labelWithDates.sort((a, b) => a[1].localeCompare(b[1]));
+
+            const sortedLabels = labelWithDates.map(item => item[0]);
+
+            const datasets = [];
+            selected.forEach((prod, idx) => {
+                const groupingMap = productMaps[prod];
+
+                const dataArr = sortedLabels.map(lbl => {
+                    return groupingMap[lbl] ? groupingMap[lbl].count : 0;
+                });
+
+                const color = colorPalette[idx % colorPalette.length];
+                datasets.push({
+                    label: prod,
+                    data: dataArr,
+                    backgroundColor: color,
+                    borderColor: color.replace('0.6', '1'),
+                    borderWidth: 1,
+                    borderRadius: 6,
+                    borderSkipped: false
+                });
+            });
+
+            return {
+                labels: sortedLabels.map(lbl => {
+                    let firstProd = selected[0];
+                    let info = productMaps[firstProd][lbl];
+                    if (!info) {
+                        for (let p of selected) {
+                            if (productMaps[p][lbl]) {
+                                info = productMaps[p][lbl];
+                                break;
+                            }
+                        }
+                    }
+
+                    if (!info) return lbl; // fallback
+
+                    if (currentGrouping === 'day') {
+                        return info.start; // "YYYY-MM-DD"
+                    } else if (currentGrouping === 'week') {
+                        return formatWeekRange(info.start, info.end);
+                    } else {
+                        return formatMonthRange(info.start);
+                    }
+                }),
+                datasets
+            };
+        }
+
+        /** Read all selected options from the multi-select */
+        function getSelectedProducts() {
+            const select = document.getElementById('productSelect');
+            const selectedValues = [];
+            for (let opt of select.options) {
+                if (opt.selected) {
+                    selectedValues.push(opt.value);
+                }
+            }
+            return selectedValues;
+        }
+
+        let myChart = null;
+        function updateChart() {
+            const { labels, datasets } = getChartData();
+
+            // Destroy old chart if any
+            if (myChart) {
+                myChart.destroy();
+            }
+            const ctx = document.getElementById('myChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels, datasets },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Count' }
+                        },
+                        x: {
+                            title: { display: true, text: currentGrouping.toUpperCase() }
+                        }
+                    }
+                }
+            });
+        }
+
+        function formatWeekRange(startStr, endStr) {
+            const start = new Date(startStr);
+            const end = new Date(endStr);
+            const opts = { month: 'short', day: 'numeric' };
+            const sPart = start.toLocaleDateString(undefined, opts);
+            const ePart = end.toLocaleDateString(undefined, opts);
+            return `${sPart} - ${ePart}`;
+        }
+
+        function formatMonthRange(startStr) {
+            const d = new Date(startStr);
+            const opts = { month: 'short', year: 'numeric' };
+            return d.toLocaleDateString(undefined, opts);
+        }
+
+        document.getElementById('btnDay').addEventListener('click', () => {
+            currentGrouping = 'day';
+            updateChart();
+        });
+        document.getElementById('btnWeek').addEventListener('click', () => {
+            currentGrouping = 'week';
+            updateChart();
+        });
+        document.getElementById('btnMonth').addEventListener('click', () => {
+            currentGrouping = 'month';
+            updateChart();
+        });
+
+        // On change of multi-select, refresh chart
+        document.getElementById('productSelect').addEventListener('change', () => {
+            updateChart();
+        });
+
+        // Apply Filter
+        document.getElementById('btnApplyFilter').addEventListener('click', () => {
+            const startVal = document.getElementById('startDate').value;
+            const endVal = document.getElementById('endDate').value;
+
+            if (startVal && endVal) {
+                customStart = new Date(startVal);
+                customStart.setHours(0, 0, 0, 0);
+                customEnd = new Date(endVal);
+                customEnd.setHours(23, 59, 59, 999);
+
+                if (customStart > customEnd) {
+                    alert('Start date cannot be after end date.');
+                    return;
+                }
+            } else {
+                // remove filter if either is missing
+                customStart = null;
+                customEnd = null;
+            }
+            updateChart();
+        });
+
+        // Clear Filter
+        document.getElementById('btnClearFilter').addEventListener('click', () => {
+            customStart = null;
+            customEnd = null;
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            updateChart();
+        });
+    </script>
+</body>
+
+</html>
