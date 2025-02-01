@@ -2,136 +2,60 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <title>Pregomesh</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.2.1"></script>
-    <style>
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            color: #fff;
-        }
-
-        /* Flex container: left sidebar + main chart area */
-        #container {
-            display: flex;
-            min-height: 100vh;
-            background-color: #371f77;
-        }
-
-        /* Sidebar styling */
-        #sidebar {
-            width: 250px;
-            background-color: #0c0d34;
-            border-right: 1px solid #ccc;
-            padding: 1rem;
-        }
-
-        #sidebar h2 {
-            margin-top: 0;
-        }
-
-        label {
-            display: inline-block;
-            margin-top: 1rem;
-            margin-bottom: 0.3rem;
-            font-weight: bold;
-        }
-
-        .grouping-buttons button {
-            display: block;
-            width: 100%;
-            margin: 0.3rem 0;
-            background-color: #b194fe;
-
-        }
-
-        /* Main area for the chart */
-        #mainContent {
-            flex: 1;
-            padding: 1rem;
-        }
-
-        #chartContainer {
-            margin-top: 1rem;
-            max-width: 100%;
-        }
-
-        /* Date Filter spacing */
-        .date-filter-group {
-            margin-bottom: 1rem;
-        }
-
-        .date-filter-group input {
-            width: 100%;
-            background-color: #b194fe;
-        }
-
-        .date-filter-group button {
-            background-color: #b194fe;
-            width: 48%;
-        }
-
-        #productSelect {
-            background-color: #b194fe;
-            width: 48%;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pregomesh Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
-<body>
-    <div id="container">
-        <!-- SIDEBAR -->
-        <aside id="sidebar">
-            <h3>Filters</h3>
-
-            <!-- Grouping Buttons -->
-            <div class="grouping-buttons">
-                <button id="btnDay">Day</button>
-                <button id="btnWeek">Week</button>
-                <button id="btnMonth">Month</button>
-            </div>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-6xl grid md:grid-cols-4 gap-6">
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg md:col-span-1">
+            <h2 class="text-xl font-semibold mb-4">Filters</h2>
+            <label class="block mb-2">Time Period</label>
+            <select id="time-period" class="w-full p-2 bg-gray-700 rounded">
+                <option value="day">Day</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+            </select>
 
             <!-- Product Multi-Select -->
-            <div class="product-filter">
-                <label for="productSelect">Products:</label>
-                <!-- 'multiple' allows picking multiple items. 'size' controls visible rows. -->
-                <select id="productSelect" multiple size="6" style="width: 100%;">
-                    <!-- We'll programmatically fill in options, including "All" -->
-                </select>
+            <h3 class="mt-4 text-lg">Products</h3>
+            <div class="space-y-2" id="productsCheckboxes">
+                <!-- <label class="flex items-center"><input type="checkbox" value="all" checked class="mr-2"> All
+                    Products</label>
+                <label class="flex items-center"><input type="checkbox" value="arev" class="mr-2"> Arev</label>
+                <label class="flex items-center"><input type="checkbox" value="bow" class="mr-2"> Bow</label>
+                <label class="flex items-center"><input type="checkbox" value="lialusin" class="mr-2"> Lialusin</label>
+                <label class="flex items-center"><input type="checkbox" value="saturday" class="mr-2"> Saturday</label> -->
             </div>
 
             <!-- Date Range Filter -->
-            <div class="date-filter-group">
-                <label for="startDate">Start Date:</label>
-                <input type="date" id="startDate" />
 
-                <label for="endDate">End Date:</label>
-                <input type="date" id="endDate" />
+            <label class="block mt-4">Start Date</label>
+            <input type="date" id="startDate" class="w-full p-2 bg-gray-700 rounded">
+            <label class="block mt-2">End Date</label>
+            <input type="date" id="endDate" class="w-full p-2 bg-gray-700 rounded">
 
-                <div style="margin-top: 0.5rem;">
-                    <button id="btnApplyFilter">Apply</button>
-                    <button id="btnClearFilter">Clear</button>
-                </div>
+            <div class="mt-4 flex gap-2">
+                <button class="w-1/2 bg-blue-600 hover:bg-blue-500 p-2 rounded" id="btnApplyFilter">Apply</button>
+                <button class="w-1/2 bg-blue-600 hover:bg-blue-500 p-2 rounded" id="btnClearFilter">Clear</button>
             </div>
-        </aside>
+        </div>
 
         <!-- MAIN CONTENT (CHART) -->
-        <div id="mainContent">
-            <h1>Pregomesh</h1>
-            <div id="chartContainer">
-                <canvas id="myChart" width="400" height="200"></canvas>
-            </div>
+
+        <div class="bg-gray-800 p-6 rounded-xl shadow-lg md:col-span-3">
+            <h1 class="text-2xl text-center mb-4">Pregomesh</h1>
+            <canvas id="myChart" width="400" height="200"></canvas>
         </div>
     </div>
 
     <script type="module">
 
         const displayNames = {
+            All: "All Products",
             NNarev: "Arev",
             NNbow: "Bow",
             NNlialusin: "Lialusin",
@@ -163,6 +87,7 @@
 
         let customStart = null;
         let customEnd = null;
+        let selectedItems = ['All'];
 
         const colorPalette = [
             'rgba(240, 98, 146, 0.6)',   // Pink (#F06292)
@@ -176,54 +101,74 @@
         ];
 
         const pregomeshRef = ref(database, 'pregomesh');
+
+        function createCheckboxes(items) {
+            const container = document.getElementById('productsCheckboxes');
+
+            // Clear existing content
+            container.innerHTML = '';
+
+            // Create and append checkboxes
+            items.forEach(item => {
+                // Create label element
+                const label = document.createElement('label');
+                label.className = 'flex items-center mb-2'; // Added mb-2 for spacing
+
+                // Create checkbox input
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = item;
+                checkbox.className = 'mr-2';
+
+                // Add event listener for the "all" checkbox
+                if (item === 'All') {
+                    checkbox.checked = true;
+                } else {
+                    // Add event listener for other checkboxes
+                    checkbox.checked = false;
+                }
+                checkbox.addEventListener('change', () => {
+                        const isChecked = event.target.checked;
+                        const value = event.target.value;
+                        if (isChecked) {
+                            selectedItems.push(value);
+                        } else {
+                            selectedItems = selectedItems.filter(i => i != value);
+                        }
+                        // Update "All" checkbox based on others
+                        updateChart();
+
+                });
+
+                // Add checkbox and label text to label element
+                label.appendChild(checkbox);
+                label.appendChild(document.createTextNode(displayNames[item]));
+                console.log(displayNames[item], item);
+                // Add label to container
+                container.appendChild(label);
+            });
+        }
+
+        const selectTimePeriod = document.getElementById('time-period');
+        if (!selectTimePeriod.dataset.singleClickEventAdded) {
+            selectTimePeriod.addEventListener('change', (e) => {
+                const option = Array.from(selectTimePeriod.options)
+                    .find(option => option.selected);
+                console.log('Selected value:', option.value);
+                currentGrouping = option.value;
+                updateChart();
+                // return false; // Prevents any further default handling
+            });
+            // Mark that we have attached this event
+            selectTimePeriod.dataset.singleClickEventAdded = 'true';
+        }
+
         onValue(pregomeshRef, (snapshot) => {
             const data = snapshot.val() || {};
             pregomeshData = data;
-
-            populateProductSelect(Object.keys(pregomeshData));
+            createCheckboxes(['All', ...Object.keys(pregomeshData)]);
             updateChart();
         });
-
-        function populateProductSelect(keys) {
-            const select = document.getElementById('productSelect');
-
-            // Clear any existing options
-            while (select.firstChild) {
-                select.removeChild(select.firstChild);
-            }
-            // Add "All" option
-            const allOption = document.createElement('option');
-            allOption.value = 'All';
-            allOption.text = 'All Products';
-            allOption.selected = true;
-            select.appendChild(allOption);
-
-            // Add each product key
-            for (let k of keys) {
-                const option = document.createElement('option');
-                option.value = k;
-                option.text = displayNames[k];
-                select.appendChild(option);
-            }
-
-            // Only attach the single-click event once
-            if (!select.dataset.singleClickEventAdded) {
-                select.addEventListener('mousedown', (e) => {
-                    // Prevent default so the browser doesn't clear other selections
-                    e.preventDefault();
-
-                    // If the user clicked on an <option>, toggle its selection
-                    if (e.target && e.target.tagName === 'OPTION') {
-                        e.target.selected = !e.target.selected;
-                    }
-                    updateChart();
-                    return false; // Prevents any further default handling
-                });
-
-                // Mark that we have attached this event
-                select.dataset.singleClickEventAdded = 'true';
-            }
-        }
 
         function groupByDay(timestamps) {
             // returns { [dayKey]: { count, start, end } }
@@ -332,7 +277,7 @@
         }
 
         function getChartData() {
-            const selected = getSelectedProducts(); // array of product names
+            const selected = selectedItems; // array of product names
             if (selected.length === 0) {
                 return { labels: [], datasets: [] };
             }
@@ -379,8 +324,7 @@
                     backgroundColor: color,
                     borderColor: color.replace('0.6', '1'),
                     borderWidth: 1,
-                    borderRadius: 6,
-                    borderSkipped: false
+                    borderRadius: 10
                 });
             });
 
@@ -437,16 +381,14 @@
                 data: { labels, datasets },
                 options: {
                     responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#fff' } },
+                    },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: { display: true, text: 'Count' }
-                        },
-                        x: {
-                            title: { display: true, text: currentGrouping.toUpperCase() }
-                        }
-                    }
-                }
+                        x: { grid: { color: '#444' }, ticks: { color: '#fff' } },
+                        y: { beginAtZero: true, grid: { color: '#444' }, ticks: { color: '#fff' } },
+                    },
+                },
             });
         }
 
@@ -464,24 +406,6 @@
             const opts = { month: 'short', year: 'numeric' };
             return d.toLocaleDateString(undefined, opts);
         }
-
-        document.getElementById('btnDay').addEventListener('click', () => {
-            currentGrouping = 'day';
-            updateChart();
-        });
-        document.getElementById('btnWeek').addEventListener('click', () => {
-            currentGrouping = 'week';
-            updateChart();
-        });
-        document.getElementById('btnMonth').addEventListener('click', () => {
-            currentGrouping = 'month';
-            updateChart();
-        });
-
-        // On change of multi-select, refresh chart
-        document.getElementById('productSelect').addEventListener('change', () => {
-            updateChart();
-        });
 
         // Apply Filter
         document.getElementById('btnApplyFilter').addEventListener('click', () => {
