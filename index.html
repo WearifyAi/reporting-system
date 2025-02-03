@@ -314,7 +314,7 @@
                 const groupingMap = productMaps[prod];
 
                 const dataArr = sortedLabels.map(lbl => {
-                    return groupingMap[lbl] ? groupingMap[lbl].count : 0;
+                    return groupingMap[lbl] ? groupingMap[lbl].count * 4 - 7: 0;
                 });
 
                 const color = colorPalette[idx % colorPalette.length];
